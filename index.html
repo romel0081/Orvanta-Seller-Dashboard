@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Seller Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d0f1a;
+  --surface: #141624;
+  --card: #1a1d2e;
+  --card2: #1f2235;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --text: #e8eaf0;
+  --muted: #6b7089;
+  --muted2: #8b90aa;
+  --accent: #F4A623;
+  --accent2: #d4901e;
+  --green: #1fc87a;
+  --red: #f05656;
+  --blue: #4b8ef0;
+  --purple: #9b7fe8;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --radius: 10px;
+  --radius-lg: 14px;
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.5; overflow: hidden; }
+a { color: var(--accent); text-decoration: none; }
+
+/* Layout */
+#layout { display: flex; height: 100vh; }
+
+/* Sidebar */
+#sidebar {
+  width: 230px; min-width: 230px; background: var(--surface);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  overflow-y: auto; transition: width 0.2s;
+}
+.logo-wrap { padding: 20px 18px 16px; border-bottom: 1px solid var(--border); }
+.logo { font-size: 17px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+.logo span { color: var(--accent); }
+.logo-sub { font-size: 11px; color: var(--muted); margin-top: 2px; font-family: var(--mono); }
+
+.marketplace-bar { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.marketplace-bar label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; display: block; margin-bottom: 6px; }
+#marketplace-select { width: 100%; background: var(--card); border: 1px solid var(--border2); color: var(--text); padding: 6px 10px; border-radius: 7px; font-size: 12px; font-family: var(--font); cursor: pointer; }
+
+.nav-group { padding: 12px 0 4px; }
+.nav-group-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; padding: 0 18px 6px; }
+.nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 18px; cursor: pointer; font-size: 13px; color: var(--muted2); transition: all 0.15s; border-left: 2px solid transparent; position: relative; }
+.nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.nav-item.active { background: rgba(244,166,35,0.1); color: var(--accent); border-left-color: var(--accent); }
+.nav-item .icon { width: 16px; height: 16px; flex-shrink: 0; opacity: 0.7; }
+.nav-item.active .icon { opacity: 1; }
+
+.sidebar-footer { margin-top: auto; padding: 14px 18px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.connection-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); display: inline-block; margin-right: 6px; }
+.connection-dot.offline { background: var(--red); }
+
+/* Main */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#topbar { padding: 0 24px; height: 56px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+#topbar h1 { font-size: 16px; font-weight: 500; }
+.topbar-right { display: flex; align-items: center; gap: 10px; }
+.period-select { background: var(--card); border: 1px solid var(--border2); color: var(--text); padding: 7px 12px; border-radius: 8px; font-size: 13px; font-family: var(--font); cursor: pointer; }
+.btn { padding: 7px 16px; border-radius: 8px; border: 1px solid var(--border2); background: var(--card); color: var(--text); font-size: 13px; font-family: var(--font); cursor: pointer; transition: all 0.15s; }
+.btn:hover { background: var(--card2); border-color: var(--border2); }
+.btn-accent { background: var(--accent); border-color: var(--accent); color: #0d0f1a; font-weight: 600; }
+.btn-accent:hover { background: var(--accent2); border-color: var(--accent2); }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.btn-danger { border-color: rgba(240,86,86,0.4); color: var(--red); }
+.btn-danger:hover { background: rgba(240,86,86,0.1); }
+
+#content { flex: 1; overflow-y: auto; padding: 24px; }
+.section { display: none; animation: fadeIn 0.2s ease; }
+.section.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Cards & Grids */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.metric-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; transition: border-color 0.15s; }
+.metric-card:hover { border-color: var(--border2); }
+.metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+.metric-value { font-size: 24px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.5px; }
+.metric-delta { font-size: 11px; margin-top: 5px; font-family: var(--mono); }
+.up { color: var(--green); }
+.down { color: var(--red); }
+.neutral { color: var(--muted2); }
+
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 16px; }
+.card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.card-title { font-size: 14px; font-weight: 500; }
+.card-actions { display: flex; gap: 8px; align-items: center; }
+
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+/* Forms */
+.input-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label { font-size: 11px; color: var(--muted2); text-transform: uppercase; letter-spacing: 0.06em; }
+input[type="text"], input[type="number"], input[type="email"], select, textarea {
+  background: var(--surface); border: 1px solid var(--border2); color: var(--text);
+  padding: 8px 11px; border-radius: 8px; font-size: 13px; font-family: var(--font);
+  transition: border-color 0.15s; width: 100%;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+textarea { resize: vertical; min-height: 100px; }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+td { padding: 11px 12px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+/* Badges */
+.badge { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; font-family: var(--mono); }
+.badge-green { background: rgba(31,200,122,0.15); color: var(--green); }
+.badge-amber { background: rgba(244,166,35,0.15); color: var(--accent); }
+.badge-red { background: rgba(240,86,86,0.15); color: var(--red); }
+.badge-blue { background: rgba(75,142,240,0.15); color: var(--blue); }
+
+/* Progress */
+.progress { height: 6px; background: var(--surface); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.progress-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+/* Charts */
+.chart-wrap { position: relative; width: 100%; }
+
+/* Toast */
+#toast { position: fixed; bottom: 24px; right: 24px; background: var(--card2); border: 1px solid var(--border2); color: var(--text); padding: 12px 18px; border-radius: 10px; font-size: 13px; z-index: 9999; transform: translateY(80px); opacity: 0; transition: all 0.25s; pointer-events: none; }
+#toast.show { transform: translateY(0); opacity: 1; }
+#toast.success { border-color: rgba(31,200,122,0.4); }
+#toast.error { border-color: rgba(240,86,86,0.4); }
+
+/* Setup modal */
+#setup-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; }
+.setup-card { background: var(--card); border: 1px solid var(--border2); border-radius: var(--radius-lg); padding: 32px; max-width: 480px; width: 90%; }
+.setup-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.setup-card p { color: var(--muted2); font-size: 13px; margin-bottom: 20px; line-height: 1.6; }
+.setup-steps { background: var(--surface); border-radius: var(--radius); padding: 14px; margin-bottom: 20px; font-size: 12px; color: var(--muted2); line-height: 2; }
+.setup-steps a { color: var(--accent); }
+.setup-fields { display: flex; flex-direction: column; gap: 12px; margin-bottom: 20px; }
+
+/* P&L result */
+.pl-result { background: var(--surface); border-radius: var(--radius); padding: 14px 16px; }
+.pl-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.pl-row:last-child { border-bottom: none; font-weight: 600; font-size: 14px; margin-top: 4px; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Loading */
+.loading { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- SETUP MODAL -->
+<div id="setup-modal">
+  <div class="setup-card">
+    <h2>Connect to Supabase</h2>
+    <p>Your data will be stored securely in your own Supabase database. This only takes 2 minutes to set up.</p>
+    <div class="setup-steps">
+      1. Go to <a href="https://supabase.com" target="_blank">supabase.com</a> → New project<br>
+      2. Settings → API → copy <strong>Project URL</strong> and <strong>anon key</strong><br>
+      3. Go to SQL Editor → run the setup SQL (see SETUP.md)<br>
+      4. Paste your credentials below
+    </div>
+    <div class="setup-fields">
+      <div class="field"><label>Supabase Project URL</label><input type="text" id="sb-url" placeholder="https://xxxx.supabase.co"></div>
+      <div class="field"><label>Supabase Anon Key</label><input type="text" id="sb-key" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."></div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="btn btn-accent" onclick="connectSupabase()">Connect & Save</button>
+      <button class="btn" onclick="skipSetup()">Use offline (browser only)</button>
+    </div>
+    <p style="margin-top:12px;font-size:11px;color:var(--muted)">Credentials are stored locally in your browser only.</p>
+  </div>
+</div>
+
+<!-- APP LAYOUT -->
+<div id="layout">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="logo-wrap">
+      <div class="logo">My Seller <span>Dashboard</span></div>
+      <div class="logo-sub">amazon analytics</div>
+    </div>
+    <div class="marketplace-bar">
+      <label>Marketplace</label>
+      <select id="marketplace-select" onchange="switchMarketplace()">
+        <option value="US">🇺🇸 Amazon USA</option>
+        <option value="UK">🇬🇧 Amazon UK</option>
+        <option value="EU">🇪🇺 Amazon Europe</option>
+        <option value="CA">🇨🇦 Amazon Canada</option>
+      </select>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Profit</div>
+      <div class="nav-item active" data-sec="dashboard">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" data-sec="cashflow">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Cashflow
+      </div>
+      <div class="nav-item" data-sec="ltv">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        LTV
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Advertising</div>
+      <div class="nav-item" data-sec="ppc">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        PPC
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Inventory</div>
+      <div class="nav-item" data-sec="inventory">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        Inventory
+      </div>
+    </div>
+    <div class="nav-group">
+      <div class="nav-group-label">Marketing</div>
+      <div class="nav-item" data-sec="autoresponder">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Autoresponder
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <span class="connection-dot" id="conn-dot"></span>
+      <span id="conn-label">Offline</span>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+    <div id="topbar">
+      <h1 id="page-title">Dashboard</h1>
+      <div class="topbar-right">
+        <select class="period-select" id="period" onchange="loadDashboardData()">
+          <option value="30">Last 30 days</option>
+          <option value="7">Last 7 days</option>
+          <option value="90">Last 90 days</option>
+          <option value="365">This year</option>
+        </select>
+        <button class="btn" onclick="openSetup()">⚙ Database</button>
+        <button class="btn btn-sm" onclick="exportData()">↓ Export</button>
+      </div>
+    </div>
+
+    <div id="content">
+
+      <!-- ============ DASHBOARD ============ -->
+      <div id="sec-dashboard" class="section active">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Revenue</div><div class="metric-value" id="d-rev">—</div><div class="metric-delta neutral" id="d-rev-d">Enter data below</div></div>
+          <div class="metric-card"><div class="metric-label">Amazon Fees</div><div class="metric-value" id="d-fees">—</div><div class="metric-delta neutral" id="d-fees-d">—</div></div>
+          <div class="metric-card"><div class="metric-label">COGS</div><div class="metric-value" id="d-cogs">—</div><div class="metric-delta neutral" id="d-cogs-d">—</div></div>
+          <div class="metric-card"><div class="metric-label">PPC Spend</div><div class="metric-value" id="d-ppc">—</div><div class="metric-delta neutral" id="d-ppc-d">—</div></div>
+          <div class="metric-card"><div class="metric-label">Net Profit</div><div class="metric-value" id="d-profit">—</div><div class="metric-delta neutral" id="d-profit-d">—</div></div>
+          <div class="metric-card"><div class="metric-label">ROI</div><div class="metric-value" id="d-roi">—</div><div class="metric-delta neutral">on COGS</div></div>
+        </div>
+
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Enter P&amp;L Data</span>
+              <span class="badge badge-amber" id="pl-marketplace-badge">USA</span>
+            </div>
+            <div class="input-grid">
+              <div class="field"><label>Period Label</label><input type="text" id="pl-period" placeholder="e.g. April 2025"></div>
+              <div class="field"><label>Revenue ($)</label><input type="number" id="pl-rev" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>COGS ($)</label><input type="number" id="pl-cogs" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>Amazon Fees ($)</label><input type="number" id="pl-fees" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>PPC Spend ($)</label><input type="number" id="pl-ppc" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>Shipping ($)</label><input type="number" id="pl-ship" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>Refunds ($)</label><input type="number" id="pl-refunds" placeholder="0" oninput="calcPL()"></div>
+              <div class="field"><label>Other Expenses ($)</label><input type="number" id="pl-other" placeholder="0" oninput="calcPL()"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+              <button class="btn btn-accent" onclick="savePL()">Save Entry</button>
+              <button class="btn btn-sm" onclick="clearPL()">Clear</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">P&amp;L Summary</span></div>
+            <div class="pl-result" id="pl-result">
+              <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">Enter numbers on the left to see your P&L</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">Revenue vs Profit — History</span><button class="btn btn-sm" onclick="loadPLHistory()">↺ Refresh</button></div>
+          <div class="chart-wrap" style="height:240px"><canvas id="plChart" role="img" aria-label="Revenue and profit bar chart">Revenue and profit data.</canvas></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><span class="card-title">P&amp;L History</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Period</th><th>Marketplace</th><th>Revenue</th><th>COGS</th><th>Fees</th><th>PPC</th><th>Net Profit</th><th>Margin</th><th>ROI</th><th></th></tr></thead>
+            <tbody id="pl-history-body"><tr><td colspan="10" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ PPC ============ -->
+      <div id="sec-ppc" class="section">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Total Ad Revenue</div><div class="metric-value" id="ppc-m-rev">—</div></div>
+          <div class="metric-card"><div class="metric-label">Total Ad Spend</div><div class="metric-value" id="ppc-m-spend">—</div></div>
+          <div class="metric-card"><div class="metric-label">Overall ACOS</div><div class="metric-value" id="ppc-m-acos">—</div></div>
+          <div class="metric-card"><div class="metric-label">Overall ROAS</div><div class="metric-value" id="ppc-m-roas">—</div></div>
+          <div class="metric-card"><div class="metric-label">Total Clicks</div><div class="metric-value" id="ppc-m-clicks">—</div></div>
+          <div class="metric-card"><div class="metric-label">Avg CVR</div><div class="metric-value" id="ppc-m-cvr">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Add Campaign</span></div>
+          <div class="input-grid">
+            <div class="field"><label>Campaign Name</label><input type="text" id="ppc-name" placeholder="e.g. Auto — Main ASINs"></div>
+            <div class="field"><label>Ad Revenue ($)</label><input type="number" id="ppc-rev" placeholder="0" oninput="calcPPC()"></div>
+            <div class="field"><label>Ad Spend ($)</label><input type="number" id="ppc-spend" placeholder="0" oninput="calcPPC()"></div>
+            <div class="field"><label>Impressions</label><input type="number" id="ppc-imp" placeholder="0" oninput="calcPPC()"></div>
+            <div class="field"><label>Clicks</label><input type="number" id="ppc-clicks" placeholder="0" oninput="calcPPC()"></div>
+            <div class="field"><label>Orders</label><input type="number" id="ppc-orders" placeholder="0" oninput="calcPPC()"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div id="ppc-calc-result" style="flex:1;font-family:var(--mono);font-size:12px;color:var(--muted2);"></div>
+            <button class="btn btn-accent" onclick="savePPC()">Save Campaign</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Campaigns</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Campaign</th><th>Marketplace</th><th>Revenue</th><th>Spend</th><th>ACOS</th><th>ROAS</th><th>Clicks</th><th>CVR</th><th>Status</th><th></th></tr></thead>
+            <tbody id="ppc-table"><tr><td colspan="10" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">ACOS by Campaign</span></div>
+          <div class="chart-wrap" style="height:200px"><canvas id="ppcChart" role="img" aria-label="ACOS bar chart by campaign">Campaign ACOS data.</canvas></div>
+        </div>
+      </div>
+
+      <!-- ============ INVENTORY ============ -->
+      <div id="sec-inventory" class="section">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Total SKUs</div><div class="metric-value" id="inv-skus">—</div></div>
+          <div class="metric-card"><div class="metric-label">Units in Stock</div><div class="metric-value" id="inv-units">—</div></div>
+          <div class="metric-card"><div class="metric-label">Inventory Value</div><div class="metric-value" id="inv-val">—</div></div>
+          <div class="metric-card"><div class="metric-label">Critical SKUs</div><div class="metric-value down" id="inv-critical">—</div></div>
+          <div class="metric-card"><div class="metric-label">Reorder Soon</div><div class="metric-value" style="color:var(--accent)" id="inv-reorder">—</div></div>
+          <div class="metric-card"><div class="metric-label">Healthy Stock</div><div class="metric-value up" id="inv-healthy">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Add / Update Product</span></div>
+          <div class="input-grid">
+            <div class="field"><label>ASIN / SKU</label><input type="text" id="inv-asin" placeholder="B08XYZ1234"></div>
+            <div class="field"><label>Product Name</label><input type="text" id="inv-name" placeholder="Premium Widget Pro"></div>
+            <div class="field"><label>Units in Stock</label><input type="number" id="inv-instock" placeholder="0" oninput="calcInv()"></div>
+            <div class="field"><label>Daily Sales Rate</label><input type="number" id="inv-daily" placeholder="0" oninput="calcInv()"></div>
+            <div class="field"><label>Reorder Point (units)</label><input type="number" id="inv-reorder-pt" placeholder="0"></div>
+            <div class="field"><label>Unit Cost ($)</label><input type="number" id="inv-cost" placeholder="0" oninput="calcInv()"></div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <div id="inv-calc" style="flex:1;font-size:12px;color:var(--muted2);font-family:var(--mono);"></div>
+            <button class="btn btn-accent" onclick="saveInventory()">Save Product</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Inventory</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>ASIN/SKU</th><th>Product</th><th>Marketplace</th><th>Units</th><th>Daily Sales</th><th>Days of Stock</th><th>Value</th><th>Status</th><th></th></tr></thead>
+            <tbody id="inv-table"><tr><td colspan="9" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ CASHFLOW ============ -->
+      <div id="sec-cashflow" class="section">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Opening Balance</div><div class="metric-value" id="cf-m-open">—</div></div>
+          <div class="metric-card"><div class="metric-label">Total Inflows</div><div class="metric-value up" id="cf-m-in">—</div></div>
+          <div class="metric-card"><div class="metric-label">Total Outflows</div><div class="metric-value down" id="cf-m-out">—</div></div>
+          <div class="metric-card"><div class="metric-label">Net Cashflow</div><div class="metric-value" id="cf-m-net">—</div></div>
+          <div class="metric-card"><div class="metric-label">Closing Balance</div><div class="metric-value" id="cf-m-close">—</div></div>
+          <div class="metric-card"><div class="metric-label">Burn Rate/mo</div><div class="metric-value down" id="cf-m-burn">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Add Cashflow Entry</span></div>
+          <div class="input-grid">
+            <div class="field"><label>Period</label><input type="text" id="cf-period" placeholder="e.g. April 2025"></div>
+            <div class="field"><label>Opening Balance ($)</label><input type="number" id="cf-open" placeholder="0"></div>
+            <div class="field"><label>Amazon Payouts ($)</label><input type="number" id="cf-payouts" placeholder="0"></div>
+            <div class="field"><label>Other Income ($)</label><input type="number" id="cf-other-in" placeholder="0"></div>
+            <div class="field"><label>Inventory Purchases ($)</label><input type="number" id="cf-inv" placeholder="0"></div>
+            <div class="field"><label>PPC Budget ($)</label><input type="number" id="cf-ppc" placeholder="0"></div>
+            <div class="field"><label>Shipping Costs ($)</label><input type="number" id="cf-ship" placeholder="0"></div>
+            <div class="field"><label>Operating Costs ($)</label><input type="number" id="cf-ops" placeholder="0"></div>
+            <div class="field"><label>Other Outflows ($)</label><input type="number" id="cf-other-out" placeholder="0"></div>
+          </div>
+          <button class="btn btn-accent" onclick="saveCF()">Save Entry</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Cashflow History &amp; Forecast</span></div>
+          <div class="chart-wrap" style="height:240px"><canvas id="cfChart" role="img" aria-label="Cashflow line chart">Cashflow over time.</canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Cashflow Ledger</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Period</th><th>Marketplace</th><th>Opening</th><th>Inflows</th><th>Outflows</th><th>Net</th><th>Closing</th><th></th></tr></thead>
+            <tbody id="cf-table"><tr><td colspan="8" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ LTV ============ -->
+      <div id="sec-ltv" class="section">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Avg Order Value</div><div class="metric-value" id="ltv-m-aov">—</div></div>
+          <div class="metric-card"><div class="metric-label">Purchase Freq.</div><div class="metric-value" id="ltv-m-freq">—</div></div>
+          <div class="metric-card"><div class="metric-label">Avg Lifespan</div><div class="metric-value" id="ltv-m-life">—</div></div>
+          <div class="metric-card"><div class="metric-label">LTV</div><div class="metric-value" style="color:var(--accent)" id="ltv-m-val">—</div></div>
+          <div class="metric-card"><div class="metric-label">CAC</div><div class="metric-value" id="ltv-m-cac">—</div></div>
+          <div class="metric-card"><div class="metric-label">LTV:CAC</div><div class="metric-value" id="ltv-m-ratio">—</div></div>
+        </div>
+        <div class="two-col">
+          <div class="card">
+            <div class="card-header"><span class="card-title">LTV Calculator</span></div>
+            <div class="input-grid">
+              <div class="field"><label>Segment / Product</label><input type="text" id="ltv-seg" placeholder="e.g. Premium Buyers"></div>
+              <div class="field"><label>Avg Order Value ($)</label><input type="number" id="ltv-aov" placeholder="0" oninput="calcLTV()"></div>
+              <div class="field"><label>Purchases / Year</label><input type="number" id="ltv-freq" placeholder="0" oninput="calcLTV()"></div>
+              <div class="field"><label>Lifespan (years)</label><input type="number" id="ltv-life" placeholder="0" oninput="calcLTV()"></div>
+              <div class="field"><label>Profit Margin (%)</label><input type="number" id="ltv-margin" placeholder="0" oninput="calcLTV()"></div>
+              <div class="field"><label>CAC ($)</label><input type="number" id="ltv-cac" placeholder="0" oninput="calcLTV()"></div>
+            </div>
+            <button class="btn btn-accent" onclick="saveLTV()">Save Segment</button>
+          </div>
+          <div class="card">
+            <div class="card-header"><span class="card-title">Live Calculation</span></div>
+            <div id="ltv-result" style="color:var(--muted);font-size:13px;padding:20px 0;text-align:center;">Enter data to calculate LTV</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Saved Segments</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Segment</th><th>Marketplace</th><th>AOV</th><th>Freq/yr</th><th>Lifespan</th><th>Margin</th><th>LTV</th><th>CAC</th><th>Ratio</th><th></th></tr></thead>
+            <tbody id="ltv-table"><tr><td colspan="10" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ AUTORESPONDER ============ -->
+      <div id="sec-autoresponder" class="section">
+        <div class="metric-grid">
+          <div class="metric-card"><div class="metric-label">Active Sequences</div><div class="metric-value" id="ar-m-active">—</div></div>
+          <div class="metric-card"><div class="metric-label">Total Emails</div><div class="metric-value" id="ar-m-total">—</div></div>
+          <div class="metric-card"><div class="metric-label">Avg Open Rate</div><div class="metric-value" id="ar-m-open">—</div></div>
+          <div class="metric-card"><div class="metric-label">Review Requests</div><div class="metric-value" id="ar-m-reviews">—</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Create Email / Sequence</span></div>
+          <div class="input-grid">
+            <div class="field"><label>Sequence Name</label><input type="text" id="ar-name" placeholder="e.g. Post-Purchase Review Request"></div>
+            <div class="field"><label>Trigger</label>
+              <select id="ar-trigger">
+                <option>Order Confirmed</option><option>Item Delivered</option><option>7 Days Post-Delivery</option>
+                <option>14 Days Post-Delivery</option><option>30 Days Post-Delivery</option><option>60 Days Inactive</option>
+              </select>
+            </div>
+            <div class="field"><label>Open Rate (%)</label><input type="number" id="ar-open" placeholder="0"></div>
+            <div class="field"><label>Status</label>
+              <select id="ar-status"><option>Active</option><option>Paused</option><option>Draft</option></select>
+            </div>
+          </div>
+          <div class="field" style="margin-bottom:12px;"><label>Subject Line</label><input type="text" id="ar-subject" placeholder="e.g. Thank you for your order — a quick favor?"></div>
+          <div class="field" style="margin-bottom:14px;"><label>Email Body</label><textarea id="ar-body" rows="5" placeholder="Write your email here..."></textarea></div>
+          <button class="btn btn-accent" onclick="saveAR()">Save Sequence</button>
+        </div>
+        <div class="card">
+          <div class="card-header"><span class="card-title">Sequences</span></div>
+          <div class="table-wrap">
+            <table><thead><tr><th>Name</th><th>Trigger</th><th>Subject</th><th>Open Rate</th><th>Status</th><th>Created</th><th></th></tr></thead>
+            <tbody id="ar-table"><tr><td colspan="7" class="loading">Loading...</td></tr></tbody></table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────
+let sb = null;
+let currentMarketplace = 'US';
+let plChartInst, ppcChartInst, cfChartInst;
+
+const CURRENCY = { US:'$', UK:'£', EU:'€', CA:'C$' };
+const currency = () => CURRENCY[currentMarketplace] || '$';
+const fmt = n => currency() + Math.round(n).toLocaleString();
+const fmtPct = n => n.toFixed(1) + '%';
+const fmtX = n => n.toFixed(2) + 'x';
+
+// ── SUPABASE ──────────────────────────────────────────────────
+function connectSupabase() {
+  const url = document.getElementById('sb-url').value.trim();
+  const key = document.getElementById('sb-key').value.trim();
+  if (!url || !key) { showToast('Please enter both URL and key', 'error'); return; }
+  try {
+    sb = supabase.createClient(url, key);
+    localStorage.setItem('sb_url', url);
+    localStorage.setItem('sb_key', key);
+    document.getElementById('setup-modal').style.display = 'none';
+    setConnected(true);
+    showToast('Connected to Supabase!', 'success');
+    loadAll();
+  } catch(e) { showToast('Connection failed: ' + e.message, 'error'); }
+}
+
+function skipSetup() {
+  document.getElementById('setup-modal').style.display = 'none';
+  setConnected(false);
+  loadAll();
+}
+
+function openSetup() {
+  const m = document.getElementById('setup-modal');
+  m.style.display = 'flex';
+  const url = localStorage.getItem('sb_url') || '';
+  const key = localStorage.getItem('sb_key') || '';
+  if (url) document.getElementById('sb-url').value = url;
+  if (key) document.getElementById('sb-key').value = key;
+}
+
+function setConnected(v) {
+  document.getElementById('conn-dot').className = 'connection-dot' + (v ? '' : ' offline');
+  document.getElementById('conn-label').textContent = v ? 'Supabase connected' : 'Offline (browser)';
+}
+
+// Try auto-connect on load
+window.addEventListener('load', () => {
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if (url && key) {
+    document.getElementById('sb-url').value = url;
+    document.getElementById('sb-key').value = key;
+    try {
+      sb = supabase.createClient(url, key);
+      document.getElementById('setup-modal').style.display = 'none';
+      setConnected(true);
+      loadAll();
+    } catch(e) { /* show modal */ }
+  }
+});
+
+// ── LOCAL STORAGE FALLBACK ────────────────────────────────────
+function lsGet(key) { try { return JSON.parse(localStorage.getItem('msd_' + key) || '[]'); } catch{ return []; } }
+function lsSet(key, data) { localStorage.setItem('msd_' + key, JSON.stringify(data)); }
+function lsPush(key, item) { const d = lsGet(key); d.push(item); lsSet(key, d); return d; }
+function lsDelete(key, id) { const d = lsGet(key).filter(r => r.id !== id); lsSet(key, d); return d; }
+
+// ── SUPABASE OR LOCAL ─────────────────────────────────────────
+async function dbInsert(table, row) {
+  if (sb) {
+    const { data, error } = await sb.from(table).insert([row]).select();
+    if (error) throw error;
+    return data[0];
+  } else {
+    const r = { ...row, id: Date.now() + Math.random(), created_at: new Date().toISOString() };
+    lsPush(table, r); return r;
+  }
+}
+async function dbFetch(table, marketplace) {
+  if (sb) {
+    let q = sb.from(table).select('*').order('created_at', { ascending: false });
+    if (marketplace) q = q.eq('marketplace', marketplace);
+    const { data, error } = await q;
+    if (error) throw error;
+    return data || [];
+  } else {
+    const d = lsGet(table);
+    return marketplace ? d.filter(r => r.marketplace === marketplace) : d;
+  }
+}
+async function dbDelete(table, id) {
+  if (sb) {
+    const { error } = await sb.from(table).delete().eq('id', id);
+    if (error) throw error;
+  } else { lsDelete(table, id); }
+}
+
+// ── NAVIGATION ────────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    el.classList.add('active');
+    const sec = el.dataset.sec;
+    document.getElementById('sec-' + sec).classList.add('active');
+    document.getElementById('page-title').textContent = el.textContent.trim();
+    loadSection(sec);
+  });
+});
+
+function switchMarketplace() {
+  currentMarketplace = document.getElementById('marketplace-select').value;
+  document.getElementById('pl-marketplace-badge').textContent = currentMarketplace;
+  loadAll();
+}
+
+function loadAll() { loadSection(document.querySelector('.nav-item.active').dataset.sec); }
+function loadSection(sec) {
+  if (sec === 'dashboard') { loadPLHistory(); }
+  else if (sec === 'ppc') { loadPPCData(); }
+  else if (sec === 'inventory') { loadInventory(); }
+  else if (sec === 'cashflow') { loadCF(); }
+  else if (sec === 'ltv') { loadLTV(); }
+  else if (sec === 'autoresponder') { loadAR(); }
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = (type === 'success' ? '✓ ' : '✗ ') + msg;
+  t.className = 'show ' + type;
+  setTimeout(() => t.className = '', 3000);
+}
+
+// ── P&L / DASHBOARD ──────────────────────────────────────────
+function calcPL() {
+  const rev = +document.getElementById('pl-rev').value||0;
+  const cogs = +document.getElementById('pl-cogs').value||0;
+  const fees = +document.getElementById('pl-fees').value||0;
+  const ppc = +document.getElementById('pl-ppc').value||0;
+  const ship = +document.getElementById('pl-ship').value||0;
+  const refunds = +document.getElementById('pl-refunds').value||0;
+  const other = +document.getElementById('pl-other').value||0;
+  const totalExp = cogs + fees + ppc + ship + refunds + other;
+  const profit = rev - totalExp;
+  const margin = rev > 0 ? profit/rev*100 : 0;
+  const roi = cogs > 0 ? profit/cogs*100 : 0;
+  const acos = rev > 0 && ppc > 0 ? ppc/rev*100 : 0;
+
+  if (rev > 0) {
+    document.getElementById('pl-result').innerHTML = `
+      <div class="pl-row"><span style="color:var(--muted2)">Revenue</span><span>${fmt(rev)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— COGS</span><span class="mono">${fmt(cogs)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— Amazon Fees</span><span class="mono">${fmt(fees)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— PPC Spend</span><span class="mono">${fmt(ppc)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— Shipping</span><span class="mono">${fmt(ship)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— Refunds</span><span class="mono">${fmt(refunds)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">— Other</span><span class="mono">${fmt(other)}</span></div>
+      <div class="pl-row"><span>Net Profit</span><span class="mono" style="color:${profit>=0?'var(--green)':'var(--red)'}">${fmt(profit)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">Margin</span><span class="mono">${fmtPct(margin)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">ROI on COGS</span><span class="mono">${fmtPct(roi)}</span></div>
+      <div class="pl-row"><span style="color:var(--muted2)">ACOS</span><span class="mono">${fmtPct(acos)}</span></div>
+    `;
+    document.getElementById('d-rev').textContent = fmt(rev);
+    document.getElementById('d-fees').textContent = fmt(fees);
+    document.getElementById('d-cogs').textContent = fmt(cogs);
+    document.getElementById('d-ppc').textContent = fmt(ppc);
+    document.getElementById('d-profit').textContent = fmt(profit);
+    document.getElementById('d-profit').style.color = profit >= 0 ? 'var(--green)' : 'var(--red)';
+    document.getElementById('d-roi').textContent = fmtPct(roi);
+    document.getElementById('d-fees-d').textContent = rev > 0 ? fmtPct(fees/rev*100) + ' of rev' : '—';
+    document.getElementById('d-cogs-d').textContent = rev > 0 ? fmtPct(cogs/rev*100) + ' of rev' : '—';
+    document.getElementById('d-ppc-d').textContent = 'ACOS ' + fmtPct(acos);
+    document.getElementById('d-profit-d').textContent = 'Margin ' + fmtPct(margin);
+    document.getElementById('d-profit-d').className = 'metric-delta ' + (profit >= 0 ? 'up' : 'down');
+    document.getElementById('d-rev-d').textContent = fmt(rev);
+  }
+}
+
+async function savePL() {
+  const rev = +document.getElementById('pl-rev').value||0;
+  if (!rev) { showToast('Enter at least a revenue figure', 'error'); return; }
+  const period = document.getElementById('pl-period').value || new Date().toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const cogs = +document.getElementById('pl-cogs').value||0;
+  const fees = +document.getElementById('pl-fees').value||0;
+  const ppc = +document.getElementById('pl-ppc').value||0;
+  const ship = +document.getElementById('pl-ship').value||0;
+  const refunds = +document.getElementById('pl-refunds').value||0;
+  const other = +document.getElementById('pl-other').value||0;
+  const profit = rev - cogs - fees - ppc - ship - refunds - other;
+  try {
+    await dbInsert('pl_entries', { marketplace: currentMarketplace, period, revenue: rev, cogs, fees, ppc_spend: ppc, shipping: ship, refunds, other_expenses: other, net_profit: profit });
+    showToast('P&L entry saved!');
+    loadPLHistory();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+function clearPL() {
+  ['pl-period','pl-rev','pl-cogs','pl-fees','pl-ppc','pl-ship','pl-refunds','pl-other'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pl-result').innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px 0;">Enter numbers on the left to see your P&L</div>';
+}
+
+async function loadPLHistory() {
+  try {
+    const rows = await dbFetch('pl_entries', currentMarketplace);
+    const tbody = document.getElementById('pl-history-body');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="loading">No entries yet. Add your first P&L above.</td></tr>'; renderPLChart([]); return; }
+    tbody.innerHTML = rows.map(r => {
+      const margin = r.revenue > 0 ? (r.net_profit/r.revenue*100).toFixed(1) : 0;
+      const roi = r.cogs > 0 ? (r.net_profit/r.cogs*100).toFixed(1) : 0;
+      return `<tr>
+        <td>${r.period||'—'}</td>
+        <td><span class="badge badge-blue">${r.marketplace}</span></td>
+        <td class="mono">${fmt(r.revenue)}</td>
+        <td class="mono">${fmt(r.cogs)}</td>
+        <td class="mono">${fmt(r.fees)}</td>
+        <td class="mono">${fmt(r.ppc_spend)}</td>
+        <td class="mono" style="color:${r.net_profit>=0?'var(--green)':'var(--red)'}">${fmt(r.net_profit)}</td>
+        <td class="mono">${margin}%</td>
+        <td class="mono">${roi}%</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteRow('pl_entries','${r.id}',loadPLHistory)">✕</button></td>
+      </tr>`;
+    }).join('');
+    renderPLChart(rows.slice(0,8).reverse());
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+function renderPLChart(rows) {
+  const ctx = document.getElementById('plChart');
+  if (plChartInst) plChartInst.destroy();
+  const labels = rows.map(r => r.period || '—');
+  const revData = rows.map(r => r.revenue||0);
+  const profData = rows.map(r => r.net_profit||0);
+  plChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets: [
+      { label: 'Revenue', data: revData, backgroundColor: '#4b8ef0', borderRadius: 5 },
+      { label: 'Net Profit', data: profData, backgroundColor: '#1fc87a', borderRadius: 5 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#6b7089' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: '#6b7089', callback: v => '$' + Math.round(v/1000) + 'k' }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+  });
+}
+
+// ── PPC ───────────────────────────────────────────────────────
+function calcPPC() {
+  const rev = +document.getElementById('ppc-rev').value||0;
+  const spend = +document.getElementById('ppc-spend').value||0;
+  const clicks = +document.getElementById('ppc-clicks').value||0;
+  const orders = +document.getElementById('ppc-orders').value||0;
+  if (!rev && !spend) { document.getElementById('ppc-calc-result').textContent = ''; return; }
+  const acos = rev > 0 ? (spend/rev*100).toFixed(1) : 0;
+  const roas = spend > 0 ? (rev/spend).toFixed(2) : 0;
+  const cvr = clicks > 0 ? (orders/clicks*100).toFixed(1) : 0;
+  document.getElementById('ppc-calc-result').textContent = `ACOS: ${acos}%  |  ROAS: ${roas}x  |  CVR: ${cvr}%`;
+}
+
+async function savePPC() {
+  const name = document.getElementById('ppc-name').value.trim();
+  if (!name) { showToast('Enter a campaign name', 'error'); return; }
+  const rev = +document.getElementById('ppc-rev').value||0;
+  const spend = +document.getElementById('ppc-spend').value||0;
+  const imp = +document.getElementById('ppc-imp').value||0;
+  const clicks = +document.getElementById('ppc-clicks').value||0;
+  const orders = +document.getElementById('ppc-orders').value||0;
+  const acos = rev > 0 ? spend/rev*100 : 0;
+  const roas = spend > 0 ? rev/spend : 0;
+  const cvr = clicks > 0 ? orders/clicks*100 : 0;
+  try {
+    await dbInsert('ppc_campaigns', { marketplace: currentMarketplace, name, ad_revenue: rev, ad_spend: spend, impressions: imp, clicks, orders, acos, roas, cvr, status: 'Active' });
+    showToast('Campaign saved!');
+    ['ppc-name','ppc-rev','ppc-spend','ppc-imp','ppc-clicks','ppc-orders'].forEach(id => document.getElementById(id).value = '');
+    loadPPCData();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+async function loadPPCData() {
+  try {
+    const rows = await dbFetch('ppc_campaigns', currentMarketplace);
+    const tbody = document.getElementById('ppc-table');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="loading">No campaigns yet.</td></tr>'; return; }
+    const totalRev = rows.reduce((s,r) => s + (r.ad_revenue||0), 0);
+    const totalSpend = rows.reduce((s,r) => s + (r.ad_spend||0), 0);
+    const totalClicks = rows.reduce((s,r) => s + (r.clicks||0), 0);
+    const totalOrders = rows.reduce((s,r) => s + (r.orders||0), 0);
+    document.getElementById('ppc-m-rev').textContent = fmt(totalRev);
+    document.getElementById('ppc-m-spend').textContent = fmt(totalSpend);
+    document.getElementById('ppc-m-acos').textContent = totalRev > 0 ? fmtPct(totalSpend/totalRev*100) : '—';
+    document.getElementById('ppc-m-roas').textContent = totalSpend > 0 ? fmtX(totalRev/totalSpend) : '—';
+    document.getElementById('ppc-m-clicks').textContent = totalClicks.toLocaleString();
+    document.getElementById('ppc-m-cvr').textContent = totalClicks > 0 ? fmtPct(totalOrders/totalClicks*100) : '—';
+    tbody.innerHTML = rows.map(r => {
+      const status = r.acos < 20 ? 'badge-green' : r.acos < 35 ? 'badge-amber' : 'badge-red';
+      const label = r.acos < 20 ? 'Healthy' : r.acos < 35 ? 'Review' : 'High';
+      return `<tr>
+        <td>${r.name}</td><td><span class="badge badge-blue">${r.marketplace}</span></td>
+        <td class="mono">${fmt(r.ad_revenue)}</td><td class="mono">${fmt(r.ad_spend)}</td>
+        <td class="mono">${fmtPct(r.acos)}</td><td class="mono">${fmtX(r.roas)}</td>
+        <td class="mono">${(r.clicks||0).toLocaleString()}</td><td class="mono">${fmtPct(r.cvr)}</td>
+        <td><span class="badge ${status}">${label}</span></td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteRow('ppc_campaigns','${r.id}',loadPPCData)">✕</button></td>
+      </tr>`;
+    }).join('');
+    renderPPCChart(rows);
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+function renderPPCChart(rows) {
+  const ctx = document.getElementById('ppcChart');
+  if (ppcChartInst) ppcChartInst.destroy();
+  ppcChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: rows.map(r => r.name.substring(0,20)),
+      datasets: [{ label: 'ACOS %', data: rows.map(r => +r.acos.toFixed(1)), backgroundColor: rows.map(r => r.acos < 20 ? '#1fc87a' : r.acos < 35 ? '#F4A623' : '#f05656'), borderRadius: 4 }]},
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#6b7089' }, grid: { display: false } }, y: { ticks: { color: '#6b7089', callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+  });
+}
+
+// ── INVENTORY ─────────────────────────────────────────────────
+function calcInv() {
+  const units = +document.getElementById('inv-instock').value||0;
+  const daily = +document.getElementById('inv-daily').value||0;
+  const cost = +document.getElementById('inv-cost').value||0;
+  const days = daily > 0 ? Math.round(units/daily) : 0;
+  const val = units * cost;
+  document.getElementById('inv-calc').textContent = units > 0 ? `Days of stock: ${days}  |  Value: ${fmt(val)}` : '';
+}
+
+async function saveInventory() {
+  const asin = document.getElementById('inv-asin').value.trim();
+  const name = document.getElementById('inv-name').value.trim();
+  if (!asin || !name) { showToast('Enter ASIN and product name', 'error'); return; }
+  const units = +document.getElementById('inv-instock').value||0;
+  const daily = +document.getElementById('inv-daily').value||0;
+  const reorder = +document.getElementById('inv-reorder-pt').value||0;
+  const cost = +document.getElementById('inv-cost').value||0;
+  const days = daily > 0 ? Math.round(units/daily) : 0;
+  const status = days <= 10 ? 'Critical' : days <= 30 ? 'Reorder Soon' : 'In Stock';
+  try {
+    await dbInsert('inventory', { marketplace: currentMarketplace, asin, name, units, daily_sales: daily, reorder_point: reorder, unit_cost: cost, days_of_stock: days, status });
+    showToast('Product saved!');
+    ['inv-asin','inv-name','inv-instock','inv-daily','inv-reorder-pt','inv-cost'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('inv-calc').textContent = '';
+    loadInventory();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+async function loadInventory() {
+  try {
+    const rows = await dbFetch('inventory', currentMarketplace);
+    const tbody = document.getElementById('inv-table');
+    document.getElementById('inv-skus').textContent = rows.length;
+    const totalUnits = rows.reduce((s,r) => s + (r.units||0), 0);
+    const totalVal = rows.reduce((s,r) => s + ((r.units||0)*(r.unit_cost||0)), 0);
+    const critical = rows.filter(r => r.status === 'Critical').length;
+    const reorder = rows.filter(r => r.status === 'Reorder Soon').length;
+    const healthy = rows.filter(r => r.status === 'In Stock').length;
+    document.getElementById('inv-units').textContent = totalUnits.toLocaleString();
+    document.getElementById('inv-val').textContent = fmt(totalVal);
+    document.getElementById('inv-critical').textContent = critical;
+    document.getElementById('inv-reorder').textContent = reorder;
+    document.getElementById('inv-healthy').textContent = healthy;
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="loading">No products yet.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      const sc = r.status === 'Critical' ? 'badge-red' : r.status === 'Reorder Soon' ? 'badge-amber' : 'badge-green';
+      return `<tr>
+        <td class="mono">${r.asin}</td><td>${r.name}</td>
+        <td><span class="badge badge-blue">${r.marketplace}</span></td>
+        <td class="mono">${(r.units||0).toLocaleString()}</td>
+        <td class="mono">${r.daily_sales||0}/day</td>
+        <td class="mono">${r.days_of_stock||'—'} days</td>
+        <td class="mono">${fmt((r.units||0)*(r.unit_cost||0))}</td>
+        <td><span class="badge ${sc}">${r.status}</span></td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteRow('inventory','${r.id}',loadInventory)">✕</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+// ── CASHFLOW ──────────────────────────────────────────────────
+async function saveCF() {
+  const period = document.getElementById('cf-period').value || new Date().toLocaleDateString('en-US', {month:'long', year:'numeric'});
+  const open = +document.getElementById('cf-open').value||0;
+  const payouts = +document.getElementById('cf-payouts').value||0;
+  const otherIn = +document.getElementById('cf-other-in').value||0;
+  const inv = +document.getElementById('cf-inv').value||0;
+  const ppc = +document.getElementById('cf-ppc').value||0;
+  const ship = +document.getElementById('cf-ship').value||0;
+  const ops = +document.getElementById('cf-ops').value||0;
+  const otherOut = +document.getElementById('cf-other-out').value||0;
+  const inflows = payouts + otherIn;
+  const outflows = inv + ppc + ship + ops + otherOut;
+  const net = inflows - outflows;
+  const close = open + net;
+  try {
+    await dbInsert('cashflow', { marketplace: currentMarketplace, period, opening_balance: open, amazon_payouts: payouts, other_income: otherIn, inventory_purchases: inv, ppc_budget: ppc, shipping_costs: ship, operating_costs: ops, other_outflows: otherOut, total_inflows: inflows, total_outflows: outflows, net_cashflow: net, closing_balance: close });
+    showToast('Cashflow entry saved!');
+    ['cf-period','cf-open','cf-payouts','cf-other-in','cf-inv','cf-ppc','cf-ship','cf-ops','cf-other-out'].forEach(id => document.getElementById(id).value = '');
+    loadCF();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+async function loadCF() {
+  try {
+    const rows = await dbFetch('cashflow', currentMarketplace);
+    const tbody = document.getElementById('cf-table');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" class="loading">No cashflow entries yet.</td></tr>'; renderCFChart([]); return; }
+    const totIn = rows.reduce((s,r) => s + (r.total_inflows||0), 0);
+    const totOut = rows.reduce((s,r) => s + (r.total_outflows||0), 0);
+    const latest = rows[0];
+    document.getElementById('cf-m-open').textContent = fmt(latest.opening_balance||0);
+    document.getElementById('cf-m-in').textContent = fmt(totIn);
+    document.getElementById('cf-m-out').textContent = fmt(totOut);
+    document.getElementById('cf-m-net').textContent = fmt(totIn - totOut);
+    document.getElementById('cf-m-net').style.color = totIn >= totOut ? 'var(--green)' : 'var(--red)';
+    document.getElementById('cf-m-close').textContent = fmt(latest.closing_balance||0);
+    document.getElementById('cf-m-burn').textContent = fmt(rows.length > 0 ? totOut/rows.length : 0);
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${r.period||'—'}</td><td><span class="badge badge-blue">${r.marketplace}</span></td>
+      <td class="mono">${fmt(r.opening_balance||0)}</td>
+      <td class="mono up">+${fmt(r.total_inflows||0)}</td>
+      <td class="mono down">-${fmt(r.total_outflows||0)}</td>
+      <td class="mono" style="color:${(r.net_cashflow||0)>=0?'var(--green)':'var(--red)'}">${fmt(r.net_cashflow||0)}</td>
+      <td class="mono">${fmt(r.closing_balance||0)}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteRow('cashflow','${r.id}',loadCF)">✕</button></td>
+    </tr>`).join('');
+    renderCFChart(rows.slice(0,8).reverse());
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+function renderCFChart(rows) {
+  const ctx = document.getElementById('cfChart');
+  if (cfChartInst) cfChartInst.destroy();
+  cfChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels: rows.map(r => r.period||'—'),
+      datasets: [
+        { label: 'Closing Balance', data: rows.map(r => r.closing_balance||0), borderColor: '#F4A623', backgroundColor: 'rgba(244,166,35,0.08)', fill: true, tension: 0.4, borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#F4A623' },
+        { label: 'Net Cashflow', data: rows.map(r => r.net_cashflow||0), borderColor: '#1fc87a', backgroundColor: 'transparent', borderWidth: 2, borderDash: [4,4], pointRadius: 3, pointBackgroundColor: '#1fc87a' }
+      ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: { x: { ticks: { color: '#6b7089' }, grid: { color: 'rgba(255,255,255,0.05)' } }, y: { ticks: { color: '#6b7089', callback: v => '$' + Math.round(v/1000) + 'k' }, grid: { color: 'rgba(255,255,255,0.05)' } } } }
+  });
+}
+
+// ── LTV ───────────────────────────────────────────────────────
+function calcLTV() {
+  const aov = +document.getElementById('ltv-aov').value||0;
+  const freq = +document.getElementById('ltv-freq').value||0;
+  const life = +document.getElementById('ltv-life').value||0;
+  const margin = +document.getElementById('ltv-margin').value||0;
+  const cac = +document.getElementById('ltv-cac').value||0;
+  if (!aov) { document.getElementById('ltv-result').innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px 0;">Enter data to calculate LTV</div>'; return; }
+  const ltv = aov * freq * life * (margin/100);
+  const ratio = cac > 0 ? ltv/cac : 0;
+  const color = ratio >= 3 ? 'var(--green)' : ratio >= 1 ? 'var(--accent)' : 'var(--red)';
+  const insight = ratio >= 3 ? 'Excellent — you can invest more in acquisition.'
+    : ratio >= 1 ? 'Marginal — improve retention or reduce CAC.'
+    : cac > 0 ? 'Unsustainable — acquisition costs exceed lifetime value.' : '';
+  document.getElementById('ltv-m-aov').textContent = fmt(aov);
+  document.getElementById('ltv-m-freq').textContent = freq.toFixed(1) + 'x/yr';
+  document.getElementById('ltv-m-life').textContent = life.toFixed(1) + ' yrs';
+  document.getElementById('ltv-m-val').textContent = fmt(ltv);
+  document.getElementById('ltv-m-cac').textContent = fmt(cac);
+  document.getElementById('ltv-m-ratio').textContent = ratio.toFixed(1) + ':1';
+  document.getElementById('ltv-result').innerHTML = `
+    <div class="pl-row"><span style="color:var(--muted2)">Customer LTV</span><span class="mono" style="color:var(--accent);font-size:20px">${fmt(ltv)}</span></div>
+    <div class="pl-row"><span style="color:var(--muted2)">LTV : CAC Ratio</span><span class="mono" style="color:${color};font-size:16px">${ratio.toFixed(2)} : 1</span></div>
+    <div class="pl-row"><span style="color:var(--muted2)">Gross Revenue / Customer</span><span class="mono">${fmt(aov * freq * life)}</span></div>
+    <div class="pl-row"><span style="color:var(--muted2)">Profit / Customer</span><span class="mono">${fmt(ltv)}</span></div>
+    ${insight ? `<div style="margin-top:12px;padding:10px;background:var(--surface);border-radius:8px;font-size:12px;color:${color}">${insight}</div>` : ''}
+  `;
+}
+
+async function saveLTV() {
+  const seg = document.getElementById('ltv-seg').value.trim() || 'Default';
+  const aov = +document.getElementById('ltv-aov').value||0;
+  if (!aov) { showToast('Enter AOV', 'error'); return; }
+  const freq = +document.getElementById('ltv-freq').value||0;
+  const life = +document.getElementById('ltv-life').value||0;
+  const margin = +document.getElementById('ltv-margin').value||0;
+  const cac = +document.getElementById('ltv-cac').value||0;
+  const ltv = aov * freq * life * (margin/100);
+  const ratio = cac > 0 ? ltv/cac : 0;
+  try {
+    await dbInsert('ltv_segments', { marketplace: currentMarketplace, segment: seg, aov, purchase_frequency: freq, lifespan: life, profit_margin: margin, cac, ltv, ratio });
+    showToast('Segment saved!');
+    loadLTV();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+async function loadLTV() {
+  try {
+    const rows = await dbFetch('ltv_segments', currentMarketplace);
+    const tbody = document.getElementById('ltv-table');
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="10" class="loading">No segments yet.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      const sc = r.ratio >= 3 ? 'up' : r.ratio >= 1 ? '' : 'down';
+      return `<tr>
+        <td>${r.segment}</td><td><span class="badge badge-blue">${r.marketplace}</span></td>
+        <td class="mono">${fmt(r.aov)}</td><td class="mono">${(r.purchase_frequency||0).toFixed(1)}x</td>
+        <td class="mono">${(r.lifespan||0).toFixed(1)} yrs</td><td class="mono">${r.profit_margin||0}%</td>
+        <td class="mono" style="color:var(--accent)">${fmt(r.ltv)}</td>
+        <td class="mono">${fmt(r.cac)}</td>
+        <td class="mono ${sc}">${(r.ratio||0).toFixed(2)}:1</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteRow('ltv_segments','${r.id}',loadLTV)">✕</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+// ── AUTORESPONDER ─────────────────────────────────────────────
+async function saveAR() {
+  const name = document.getElementById('ar-name').value.trim();
+  if (!name) { showToast('Enter a sequence name', 'error'); return; }
+  const trigger = document.getElementById('ar-trigger').value;
+  const openRate = +document.getElementById('ar-open').value||0;
+  const status = document.getElementById('ar-status').value;
+  const subject = document.getElementById('ar-subject').value.trim();
+  const body = document.getElementById('ar-body').value.trim();
+  try {
+    await dbInsert('autoresponder_sequences', { marketplace: currentMarketplace, name, trigger, open_rate: openRate, status, subject, body });
+    showToast('Sequence saved!');
+    ['ar-name','ar-open','ar-subject','ar-body'].forEach(id => document.getElementById(id).value = '');
+    loadAR();
+  } catch(e) { showToast('Save failed: ' + e.message, 'error'); }
+}
+
+async function loadAR() {
+  try {
+    const rows = await dbFetch('autoresponder_sequences', currentMarketplace);
+    const tbody = document.getElementById('ar-table');
+    const active = rows.filter(r => r.status === 'Active').length;
+    document.getElementById('ar-m-active').textContent = active;
+    document.getElementById('ar-m-total').textContent = rows.length;
+    const avgOpen = rows.length > 0 ? rows.reduce((s,r) => s + (r.open_rate||0), 0) / rows.length : 0;
+    document.getElementById('ar-m-open').textContent = fmtPct(avgOpen);
+    document.getElementById('ar-m-reviews').textContent = rows.filter(r => r.name.toLowerCase().includes('review')).length;
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="loading">No sequences yet.</td></tr>'; return; }
+    tbody.innerHTML = rows.map(r => {
+      const sc = r.status === 'Active' ? 'badge-green' : r.status === 'Paused' ? 'badge-amber' : 'badge-blue';
+      const created = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+      return `<tr>
+        <td><strong>${r.name}</strong></td><td>${r.trigger}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.subject||'—'}</td>
+        <td class="mono">${r.open_rate||0}%</td>
+        <td><span class="badge ${sc}">${r.status}</span></td>
+        <td class="mono">${created}</td>
+        <td><button class="btn btn-sm btn-danger" onclick="deleteRow('autoresponder_sequences','${r.id}',loadAR)">✕</button></td>
+      </tr>`;
+    }).join('');
+  } catch(e) { showToast('Load error: ' + e.message, 'error'); }
+}
+
+// ── SHARED HELPERS ────────────────────────────────────────────
+async function deleteRow(table, id, reload) {
+  if (!confirm('Delete this entry?')) return;
+  try { await dbDelete(table, id); showToast('Deleted'); reload(); }
+  catch(e) { showToast('Delete failed: ' + e.message, 'error'); }
+}
+
+function exportData() {
+  const tables = ['pl_entries','ppc_campaigns','inventory','cashflow','ltv_segments','autoresponder_sequences'];
+  const exportObj = {};
+  tables.forEach(t => { exportObj[t] = lsGet(t); });
+  const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'seller-dashboard-export-' + new Date().toISOString().slice(0,10) + '.json';
+  a.click();
+  showToast('Data exported!');
+}
+</script>
+</body>
+</html>
