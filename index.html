@@ -197,7 +197,7 @@ tbody tr:hover td { background: rgba(255,255,255,0.02); }
   <!-- SIDEBAR -->
   <div id="sidebar">
     <div class="logo-wrap">
-      <div class="logo">Orvanta Seller <span>Dashboard</span></div>
+      <div class="logo">Orvant Seller <span>Dashboard</span></div>
       <div class="logo-sub">amazon analytics</div>
     </div>
     <div class="marketplace-bar">
@@ -562,17 +562,31 @@ function setConnected(v) {
 
 // Try auto-connect on load
 window.addEventListener('load', () => {
-  const url = localStorage.getItem('sb_url');
-  const key = localStorage.getItem('sb_key');
+  // 1. Enter your specific project details here
+  const url = 'https://amhnkqimbshpyotachza.supabase.co'; 
+  const key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFtaG5rcWltYnNocHlvdGFjaHphIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MDI1ODQsImV4cCI6MjA5MzA3ODU4NH0.8l3ah7BhVk20uJdLGGYzn_23-ihUHrcTzeg0SO7mkMo';
+
   if (url && key) {
-    document.getElementById('sb-url').value = url;
-    document.getElementById('sb-key').value = key;
     try {
+      // 2. Initialize the connection immediately
       sb = supabase.createClient(url, key);
-      document.getElementById('setup-modal').style.display = 'none';
+      
+      // 3. Automatically hide the setup modal
+      const modal = document.getElementById('setup-modal');
+      if (modal) modal.style.display = 'none';
+      
+      // 4. Set the UI to "Connected" status
       setConnected(true);
+      
+      // 5. Trigger the data loading functions
       loadAll();
-    } catch(e) { /* show modal */ }
+      
+      console.log("Successfully connected to Supabase!");
+    } catch(e) {
+      console.error("Connection failed:", e);
+      // If it fails, show the modal as a fallback
+      document.getElementById('setup-modal').style.display = 'flex';
+    }
   }
 });
 
